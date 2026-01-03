@@ -30,13 +30,21 @@ async function deploy() {
       host: HOST,
       user: USER,
       password: PASSWORD,
-      secure: true // Explicitly using secure connection if supported
+      secure: true,
+      // This is required for shared hosting where the certificate (e.g. *.hstgr.io)
+      // doesn't match your specific FTP domain (e.g. ftp.yoursite.com).
+      secureOptions: { 
+        rejectUnauthorized: false 
+      }
     });
 
     console.log(`📂 Uploading from ${LOCAL_BUILD_DIR} to ${REMOTE_ROOT}...`);
     
     // Ensure remote directory exists
     await client.ensureDir(REMOTE_ROOT);
+    
+    // Clear the remote directory before uploading (optional, but good for clean deploys)
+    // await client.clearWorkingDir(); 
     
     // Upload the contents of the local build directory to the remote root
     await client.uploadFromDir(LOCAL_BUILD_DIR, REMOTE_ROOT);
