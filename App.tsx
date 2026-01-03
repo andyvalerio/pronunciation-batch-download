@@ -196,7 +196,6 @@ export default function App() {
             disabled={processingState.isProcessing}
           />
           <div className="mt-2 text-xs text-gray-500 flex justify-between">
-             <span>Supported languages: Lithuanian, Russian.</span>
              <span>{wordsInput.split('\n').filter(w => w.trim()).length} words detected</span>
           </div>
         </div>

@@ -64,4 +64,4 @@ The project includes a `deploy.js` script for FTP deployment.
 
 ## License
 
-MIT
+GNU General Public License v3.0
