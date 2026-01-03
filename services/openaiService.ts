@@ -8,7 +8,8 @@ export const generateSpeech = async (
   apiKey: string,
   word: string,
   language: Language,
-  voice: Voice
+  voice: Voice,
+  speed: number
 ): Promise<ArrayBuffer> => {
   if (!apiKey) throw new Error("API Key is required");
 
@@ -25,7 +26,8 @@ export const generateSpeech = async (
       model: "tts-1", // 'tts-1' is the standard model. 'tts-1-hd' is also available.
       input: word,
       voice: voice.toLowerCase(), // OpenAI voices are lowercase
-      response_format: "mp3"
+      response_format: "mp3",
+      speed: speed
     }),
   });
 

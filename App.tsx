@@ -21,6 +21,7 @@ export default function App() {
   const [wordsInput, setWordsInput] = useState('');
   const [language, setLanguage] = useState<Language>(Language.Lithuanian);
   const [voice, setVoice] = useState<Voice>(Voice.Alloy);
+  const [speed, setSpeed] = useState<number>(1.0);
   const [delayMs, setDelayMs] = useState<number>(1000); 
   
   const [logs, setLogs] = useState<ProcessingLog[]>([]);
@@ -124,8 +125,8 @@ export default function App() {
           await new Promise(r => setTimeout(r, delayMs));
         }
 
-        // 1. Generate MP3
-        const mp3Buffer = await generateSpeech(apiKey, word, language, voice);
+        // 1. Generate MP3 with speed
+        const mp3Buffer = await generateSpeech(apiKey, word, language, voice, speed);
         
         // 2. Validate Audio (Check for silence/duration)
         const validation = await validateAudioContent(mp3Buffer, audioCtx);
@@ -171,7 +172,7 @@ export default function App() {
 
     setProcessingState(prev => ({ ...prev, isProcessing: false, currentWord: '' }));
 
-  }, [apiKey, wordsInput, language, voice, delayMs]);
+  }, [apiKey, wordsInput, language, voice, speed, delayMs]);
 
   const clearResults = () => {
      cleanupUrls();
@@ -211,6 +212,8 @@ export default function App() {
           setLanguage={setLanguage}
           voice={voice}
           setVoice={setVoice}
+          speed={speed}
+          setSpeed={setSpeed}
           delayMs={delayMs}
           setDelayMs={setDelayMs}
           disabled={processingState.isProcessing}
