@@ -13,15 +13,22 @@ async function deploy() {
   const client = new ftp.Client();
   client.ftp.verbose = true;
 
-  const HOST = process.env.FTP_HOST;
-  const USER = process.env.FTP_USER;
-  const PASSWORD = process.env.FTP_PASSWORD;
-  const REMOTE_ROOT = process.env.FTP_REMOTE_ROOT || '/public_html';
-  const LOCAL_BUILD_DIR = path.join(__dirname, 'dist'); // Assuming Vite/React default build dir
+  // Trim values to remove accidental whitespace
+  const HOST = process.env.FTP_HOST?.trim();
+  const USER = process.env.FTP_USER?.trim();
+  const PASSWORD = process.env.FTP_PASSWORD; // Do not trim password in case spaces are intentional, but usually safe to trim if wrapped in quotes.
+  const REMOTE_ROOT = process.env.FTP_REMOTE_ROOT?.trim() || '/';
+  const LOCAL_BUILD_DIR = path.join(__dirname, 'dist');
 
   if (!HOST || !USER || !PASSWORD) {
     console.error('❌ Error: Missing FTP credentials in .env file (FTP_HOST, FTP_USER, FTP_PASSWORD)');
     process.exit(1);
+  }
+
+  // Debugging: Log the length of the password to verify it isn't being truncated by dotenv
+  console.log(`🔑 Credentials loaded. Password length: ${PASSWORD.length} characters.`);
+  if (PASSWORD.length < 15) {
+      console.warn('⚠️  Warning: Password seems short. If your password contains "#", ensure it is wrapped in double quotes in the .env file.');
   }
 
   try {
@@ -42,9 +49,6 @@ async function deploy() {
     
     // Ensure remote directory exists
     await client.ensureDir(REMOTE_ROOT);
-    
-    // Clear the remote directory before uploading (optional, but good for clean deploys)
-    // await client.clearWorkingDir(); 
     
     // Upload the contents of the local build directory to the remote root
     await client.uploadFromDir(LOCAL_BUILD_DIR, REMOTE_ROOT);
