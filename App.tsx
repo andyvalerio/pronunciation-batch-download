@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import JSZip from 'jszip';
 import saveAs from 'file-saver';
 import { Download, FileAudio, PlayCircle, Trash2 } from 'lucide-react';
@@ -31,12 +31,21 @@ export default function App() {
     currentWord: '',
   });
 
-  // Cleanup object URLs to avoid memory leaks
+  // Use a Ref to track object URLs for cleanup. 
+  // This avoids the issue where updating the generatedItems state triggers cleanup of URLs that are still in use.
+  const objectUrlsRef = useRef<string[]>([]);
+
+  // Cleanup object URLs on component unmount
   useEffect(() => {
     return () => {
-      generatedItems.forEach(item => URL.revokeObjectURL(item.url));
+      objectUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
     };
-  }, [generatedItems]);
+  }, []);
+
+  const cleanupUrls = () => {
+      objectUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
+      objectUrlsRef.current = [];
+  };
 
   const addLog = (message: string, type: ProcessingLog['type'] = 'info') => {
     const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
@@ -55,8 +64,8 @@ export default function App() {
       return;
     }
 
-    // Clear previous items
-    generatedItems.forEach(item => URL.revokeObjectURL(item.url));
+    // Clear previous items and revoke their URLs
+    cleanupUrls();
     setGeneratedItems([]);
 
     setProcessingState({
@@ -104,6 +113,9 @@ export default function App() {
         const blob = new Blob([wavBuffer], { type: 'audio/wav' });
         const url = URL.createObjectURL(blob);
         
+        // Track URL for cleanup
+        objectUrlsRef.current.push(url);
+        
         setGeneratedItems(prev => [...prev, { word, url, filename }]);
         addLog(`Success: ${filename}`, 'success');
         successCount++;
@@ -126,10 +138,10 @@ export default function App() {
 
     setProcessingState(prev => ({ ...prev, isProcessing: false, currentWord: '' }));
 
-  }, [apiKey, wordsInput, language, voice, generatedItems]);
+  }, [apiKey, wordsInput, language, voice]);
 
   const clearResults = () => {
-     generatedItems.forEach(item => URL.revokeObjectURL(item.url));
+     cleanupUrls();
      setGeneratedItems([]);
      setLogs([]);
   };

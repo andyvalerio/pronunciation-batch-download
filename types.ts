@@ -1,6 +1,10 @@
 export enum Language {
   Lithuanian = 'Lithuanian',
-  Russian = 'Russian'
+  Russian = 'Russian',
+  Italian = 'Italian',
+  Czech = 'Czech',
+  Swedish = 'Swedish',
+  English = 'English'
 }
 
 export enum Voice {
