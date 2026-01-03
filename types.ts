@@ -8,11 +8,12 @@ export enum Language {
 }
 
 export enum Voice {
-  Kore = 'Kore',
-  Puck = 'Puck',
-  Charon = 'Charon',
-  Fenrir = 'Fenrir',
-  Zephyr = 'Zephyr'
+  Alloy = 'Alloy',
+  Echo = 'Echo',
+  Fable = 'Fable',
+  Onyx = 'Onyx',
+  Nova = 'Nova',
+  Shimmer = 'Shimmer'
 }
 
 export interface ProcessingLog {

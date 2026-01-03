@@ -6,8 +6,8 @@ import { Download, FileAudio, PlayCircle, Trash2 } from 'lucide-react';
 import { ApiKeyInput } from './components/ApiKeyInput';
 import { ConfigurationPanel } from './components/ConfigurationPanel';
 import { ProcessingStatus } from './components/ProcessingStatus';
-import { generateSpeech, sanitizeFilename } from './services/geminiService';
-import { pcmToWav } from './utils/audioUtils';
+import { generateSpeech, sanitizeFilename } from './services/openaiService';
+import { validateAudioContent } from './utils/audioValidator';
 import { Language, Voice, ProcessingLog, ProcessingState } from './types';
 
 interface GeneratedAudio {
@@ -20,7 +20,8 @@ export default function App() {
   const [apiKey, setApiKey] = useState('');
   const [wordsInput, setWordsInput] = useState('');
   const [language, setLanguage] = useState<Language>(Language.Lithuanian);
-  const [voice, setVoice] = useState<Voice>(Voice.Kore);
+  const [voice, setVoice] = useState<Voice>(Voice.Alloy);
+  const [delayMs, setDelayMs] = useState<number>(1000); 
   
   const [logs, setLogs] = useState<ProcessingLog[]>([]);
   const [generatedItems, setGeneratedItems] = useState<GeneratedAudio[]>([]);
@@ -31,14 +32,15 @@ export default function App() {
     currentWord: '',
   });
 
-  // Use a Ref to track object URLs for cleanup. 
-  // This avoids the issue where updating the generatedItems state triggers cleanup of URLs that are still in use.
   const objectUrlsRef = useRef<string[]>([]);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
-  // Cleanup object URLs on component unmount
   useEffect(() => {
     return () => {
       objectUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close();
+      }
     };
   }, []);
 
@@ -52,9 +54,21 @@ export default function App() {
     setLogs(prev => [...prev, { timestamp, message, type }]);
   };
 
+  const getAudioContext = () => {
+    if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+       audioContextRef.current = new AudioContextClass();
+    }
+    // Resume if suspended (browser policy requirement)
+    if (audioContextRef.current.state === 'suspended') {
+      audioContextRef.current.resume();
+    }
+    return audioContextRef.current;
+  };
+
   const handleProcess = useCallback(async () => {
     if (!apiKey) {
-      alert("Please enter a valid Gemini API Key.");
+      alert("Please enter a valid OpenAI API Key.");
       return;
     }
 
@@ -64,7 +78,6 @@ export default function App() {
       return;
     }
 
-    // Clear previous items and revoke their URLs
     cleanupUrls();
     setGeneratedItems([]);
 
@@ -75,7 +88,7 @@ export default function App() {
       currentWord: '',
     });
     setLogs([]); 
-    addLog(`Starting batch process for ${words.length} words in ${language}...`);
+    addLog(`Starting batch process for ${words.length} words...`);
 
     const zip = new JSZip();
     const folderName = `pronunciations_${language.toLowerCase()}_${new Date().toISOString().slice(0,10)}`;
@@ -90,6 +103,16 @@ export default function App() {
     let successCount = 0;
     let failureCount = 0;
 
+    // Initialize AudioContext for validation
+    let audioCtx: AudioContext;
+    try {
+      audioCtx = getAudioContext();
+    } catch (e: any) {
+      addLog(`Failed to initialize AudioContext: ${e.message}`, 'error');
+      setProcessingState(prev => ({ ...prev, isProcessing: false }));
+      return;
+    }
+
     for (let i = 0; i < words.length; i++) {
       const word = words[i];
       setProcessingState(prev => ({ ...prev, progress: i, currentWord: word }));
@@ -97,23 +120,29 @@ export default function App() {
       try {
         addLog(`Generating audio for: "${word}"`, 'info');
         
-        // Rate limiting precaution
-        if (i > 0) await new Promise(r => setTimeout(r, 500));
+        if (i > 0) {
+          await new Promise(r => setTimeout(r, delayMs));
+        }
 
-        const pcmBuffer = await generateSpeech(apiKey, word, language, voice);
+        // 1. Generate MP3
+        const mp3Buffer = await generateSpeech(apiKey, word, language, voice);
         
-        // Convert raw PCM to WAV
-        const wavBuffer = pcmToWav(pcmBuffer);
-        const filename = `${sanitizeFilename(word)}.wav`;
+        // 2. Validate Audio (Check for silence/duration)
+        const validation = await validateAudioContent(mp3Buffer, audioCtx);
         
-        // Add to ZIP
-        folder.file(filename, wavBuffer);
+        if (!validation.isValid) {
+          throw new Error(`Audio validation failed: ${validation.error}`);
+        }
 
-        // Create preview URL
-        const blob = new Blob([wavBuffer], { type: 'audio/wav' });
+        const filename = `${sanitizeFilename(word)}.mp3`;
+        
+        // 3. Add to ZIP
+        folder.file(filename, mp3Buffer);
+
+        // 4. Create preview URL
+        const blob = new Blob([mp3Buffer], { type: 'audio/mpeg' });
         const url = URL.createObjectURL(blob);
         
-        // Track URL for cleanup
         objectUrlsRef.current.push(url);
         
         setGeneratedItems(prev => [...prev, { word, url, filename }]);
@@ -128,17 +157,21 @@ export default function App() {
     setProcessingState(prev => ({ ...prev, progress: words.length, currentWord: 'Finalizing ZIP...' }));
     addLog(`Batch complete. Success: ${successCount}, Failures: ${failureCount}. Zipping...`);
 
-    try {
-      const content = await zip.generateAsync({ type: 'blob' });
-      saveAs(content, `${folderName}.zip`);
-      addLog("ZIP file downloaded successfully.", 'success');
-    } catch (err: any) {
-      addLog(`Failed to generate ZIP: ${err.message}`, 'error');
+    if (successCount > 0) {
+      try {
+        const content = await zip.generateAsync({ type: 'blob' });
+        saveAs(content, `${folderName}.zip`);
+        addLog("ZIP file downloaded successfully.", 'success');
+      } catch (err: any) {
+        addLog(`Failed to generate ZIP: ${err.message}`, 'error');
+      }
+    } else {
+      addLog("No files generated, skipping ZIP download.", 'error');
     }
 
     setProcessingState(prev => ({ ...prev, isProcessing: false, currentWord: '' }));
 
-  }, [apiKey, wordsInput, language, voice]);
+  }, [apiKey, wordsInput, language, voice, delayMs]);
 
   const clearResults = () => {
      cleanupUrls();
@@ -153,13 +186,13 @@ export default function App() {
         {/* Header */}
         <div className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="p-3 bg-indigo-600 rounded-full shadow-lg">
+            <div className="p-3 bg-emerald-600 rounded-full shadow-lg">
               <FileAudio className="w-8 h-8 text-white" />
             </div>
           </div>
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Pronunciation Batch Download</h1>
           <p className="mt-2 text-lg text-gray-600">
-            Generate pronunciation files in bulk using Gemini AI.
+            Generate pronunciation files in bulk using OpenAI TTS.
           </p>
         </div>
 
@@ -178,6 +211,8 @@ export default function App() {
           setLanguage={setLanguage}
           voice={voice}
           setVoice={setVoice}
+          delayMs={delayMs}
+          setDelayMs={setDelayMs}
           disabled={processingState.isProcessing}
         />
 
@@ -189,7 +224,7 @@ export default function App() {
           <textarea
             id="words"
             rows={8}
-            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-3 border font-mono"
+            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm p-3 border font-mono"
             placeholder={`Labas\nAčiū\nViso gero...`}
             value={wordsInput}
             onChange={(e) => setWordsInput(e.target.value)}
@@ -207,7 +242,7 @@ export default function App() {
           className={`w-full flex justify-center items-center py-4 px-4 border border-transparent rounded-xl shadow-sm text-lg font-medium text-white transition-all
             ${processingState.isProcessing || !wordsInput.trim() || !apiKey 
               ? 'bg-gray-400 cursor-not-allowed' 
-              : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg transform hover:-translate-y-0.5'
+              : 'bg-emerald-600 hover:bg-emerald-700 hover:shadow-lg transform hover:-translate-y-0.5'
             }`}
         >
           {processingState.isProcessing ? (
@@ -228,7 +263,7 @@ export default function App() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
               <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                <PlayCircle className="w-5 h-5 text-indigo-600" />
+                <PlayCircle className="w-5 h-5 text-emerald-600" />
                 Audio Previews ({generatedItems.length})
               </h3>
               <button 

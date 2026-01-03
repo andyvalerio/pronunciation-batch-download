@@ -1,5 +1,5 @@
 {
   "name": "Pronunciation Batch Download",
-  "description": "A tool to batch generate pronunciations for Lithuanian and Russian words using Gemini AI and export them as a ZIP file.",
+  "description": "A tool to batch generate pronunciations for Lithuanian and Russian words using OpenAI TTS and export them as a ZIP file.",
   "requestFramePermissions": []
 }

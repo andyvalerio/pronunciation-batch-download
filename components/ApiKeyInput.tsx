@@ -13,7 +13,7 @@ export const ApiKeyInput: React.FC<ApiKeyInputProps> = ({ apiKey, setApiKey, dis
   return (
     <div className="space-y-2">
       <label htmlFor="api-key" className="block text-sm font-medium text-gray-700">
-        Gemini API Key
+        OpenAI API Key
       </label>
       <div className="relative rounded-md shadow-sm">
         <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
@@ -24,8 +24,8 @@ export const ApiKeyInput: React.FC<ApiKeyInputProps> = ({ apiKey, setApiKey, dis
           name="api-key"
           id="api-key"
           disabled={disabled}
-          className="block w-full rounded-md border-gray-300 pl-10 pr-10 py-2.5 text-sm focus:border-indigo-500 focus:ring-indigo-500 border shadow-sm"
-          placeholder="Enter your Gemini API Key (AI Studio)"
+          className="block w-full rounded-md border-gray-300 pl-10 pr-10 py-2.5 text-sm focus:border-emerald-500 focus:ring-emerald-500 border shadow-sm"
+          placeholder="sk-..."
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
         />
@@ -43,7 +43,7 @@ export const ApiKeyInput: React.FC<ApiKeyInputProps> = ({ apiKey, setApiKey, dis
         </button>
       </div>
       <p className="text-xs text-gray-500">
-        The key is processed locally in your browser and is never sent to our backend.
+        The key is used directly with OpenAI's API from your browser.
       </p>
     </div>
   );
