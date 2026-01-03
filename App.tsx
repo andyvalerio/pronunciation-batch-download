@@ -145,7 +145,7 @@ export default function App() {
               <FileAudio className="w-8 h-8 text-white" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">PolyGlot TTS Batcher</h1>
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Pronunciation Batch Download</h1>
           <p className="mt-2 text-lg text-gray-600">
             Generate pronunciation files in bulk using Gemini AI.
           </p>
